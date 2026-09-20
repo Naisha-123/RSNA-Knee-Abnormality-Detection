@@ -1,0 +1,104 @@
+{
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "language": "markdown"
+      },
+      "source": [
+        "# RSNA Knee Abnormality: Exploratory Data Analysis\n",
+        "\n",
+        "This notebook checks the study count, the 12 available label counts, series metadata coverage, and the report-only versus explicitly labeled split."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "language": "python"
+      },
+      "outputs": [],
+      "source": [
+        "from pathlib import Path\n",
+        "import pandas as pd\n",
+        "\n",
+        "DATA_DIR = Path('..') / 'data'\n",
+        "train = pd.read_csv(DATA_DIR / 'train.csv')\n",
+        "train_series = pd.read_csv(DATA_DIR / 'train_series.csv')\n",
+        "\n",
+        "print(f'train.csv shape: {train.shape}')\n",
+        "print(f'train_series.csv shape: {train_series.shape}')\n",
+        "display(train.head(2))\n",
+        "display(train_series.head(2))"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "language": "python"
+      },
+      "outputs": [],
+      "source": [
+        "label_columns = [\n",
+        "    'ACL', 'MCL', 'Medial Meniscus', 'Lateral Meniscus',\n",
+        "    'Medial OA', 'Lateral OA', 'PF OA', 'Effusion',\n",
+        "    'Synovitis', \"Baker's\", 'Contusion', 'Fracture'\n",
+        "]\n",
+        "missing_labels = sorted(set(label_columns) - set(train.columns))\n",
+        "if missing_labels:\n",
+        "    raise KeyError(f'Missing expected label columns: {missing_labels}')\n",
+        "\n",
+        "has_any_label = train[label_columns].notna().any(axis=1)\n",
+        "has_report = train['Report'].fillna('').str.strip().ne('')\n",
+        "report_only = has_report & ~has_any_label\n",
+        "\n",
+        "print(f\"Number of unique studies: {train['StudyInstanceUID'].nunique():,}\")\n",
+        "print(f\"Studies with at least one explicit label: {has_any_label.sum():,}\")\n",
+        "print(f\"Studies with a non-empty report but no explicit labels: {report_only.sum():,}\")\n",
+        "print('Non-null rows for each label:')\n",
+        "display(train[label_columns].notna().sum().rename('studies_with_label').to_frame())"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "language": "python"
+      },
+      "source": [
+        "print(f\"Unique studies represented in train_series.csv: {train_series['StudyInstanceUID'].nunique():,}\")\n",
+        "\n",
+        "metadata_columns = [\n",
+        "    column for column in train_series.columns\n",
+        "    if any(term in column.lower() for term in ('scanner', 'site', 'hospital', 'manufacturer', 'institution'))\n",
+        "]\n",
+        "if metadata_columns:\n",
+        "    print('Scanner/site metadata columns found:')\n",
+        "    for column in metadata_columns:\n",
+        "        print(f\"  {column}: {train_series[column].nunique(dropna=True):,} unique values\")\n",
+        "else:\n",
+        "    print('No scanner/site columns are present in train_series.csv.')\n",
+        "    print('Available series metadata:', ', '.join(train_series.columns))\n",
+        "\n",
+        "print('Split summary:')\n",
+        "print(f\"  Explicitly labeled studies: {has_any_label.sum():,}\")\n",
+        "print(f\"  Report-derived studies (report, no explicit labels): {report_only.sum():,}\")\n",
+        "print(f\"  Studies with neither: {(~has_report & ~has_any_label).sum():,}\")"
+      ]
+    }
+  ],
+  "metadata": {
+    "kernelspec": {
+      "display_name": "Python 3",
+      "language": "python",
+      "name": "python3"
+    },
+    "language_info": {
+      "name": "python",
+      "version": "3.x"
+    }
+  },
+  "nbformat": 4,
+  "nbformat_minor": 5
+}
